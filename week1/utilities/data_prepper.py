@@ -7,6 +7,7 @@ import pandas as pd
 import query_utils as qu
 from opensearchpy import RequestError
 import os
+from collections import defaultdict
 
 # from importlib import reload
 
@@ -236,20 +237,38 @@ class DataPrepper:
                                                 size=len(query_doc_ids), terms_field=terms_field)
         ##### Step Extract LTR Logged Features:
         # IMPLEMENT_START --
-        print("IMPLEMENT ME: __log_ltr_query_features: Extract log features out of the LTR:EXT response and place in a data frame")
+        # Todo: Get feature list from conf
+        features = ['name_match', 'name_phrase_match', 'customerReviewAverage', 'customerReviewCount', 'salesRankShortTerm']
         # Loop over the hits structure returned by running `log_query` and then extract out the features from the response per query_id and doc id.  Also capture and return all query/doc pairs that didn't return features
+        response = self.opensearch.search(body=log_query, index=self.index_name)
         # Your structure should look like the data frame below
         feature_results = {}
         feature_results["doc_id"] = []  # capture the doc id so we can join later
         feature_results["query_id"] = []  # ^^^
         feature_results["sku"] = []
-        feature_results["name_match"] = []
-        rng = np.random.default_rng(12345)
+        for feature in features:
+            feature_results[feature] = []
+
         for doc_id in query_doc_ids:
             feature_results["doc_id"].append(doc_id)  # capture the doc id so we can join later
             feature_results["query_id"].append(query_id)
-            feature_results["sku"].append(doc_id)  
-            feature_results["name_match"].append(rng.random())
+            feature_results["sku"].append(doc_id) 
+
+        # feature_map[feature_name][doc_id] -> feature value
+        feature_map = defaultdict(dict)
+        for hit in response['hits']['hits']:
+            for entry in hit['fields']['_ltrlog'][0]['log_entry']:
+                if 'value' in entry:
+                    feature_map[entry['name']][int(hit['_id'])] = entry['value']
+
+        default_value = 0
+        for doc_id in query_doc_ids:
+            for feature_name in features:
+                if feature_name in feature_map:
+                    v = feature_map[feature_name].get(doc_id, default_value)
+                    feature_results[feature_name].append(v)
+                else:
+                    feature_results[feature_name].append(default_value)
         frame = pd.DataFrame(feature_results)
         return frame.astype({'doc_id': 'int64', 'query_id': 'int64', 'sku': 'int64'})
         # IMPLEMENT_END
