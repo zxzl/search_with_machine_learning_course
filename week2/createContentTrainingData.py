@@ -3,6 +3,7 @@ import multiprocessing
 import glob
 from tqdm import tqdm
 import os
+import pandas as pd
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -60,9 +61,21 @@ def _label_filename(filename):
 
 if __name__ == '__main__':
     files = glob.glob(f'{directory}/*.xml')
+    # For debugging
+    # files = files[:2]
     print("Writing results to %s" % output_file)
     with multiprocessing.Pool() as p:
         all_labels = tqdm(p.imap(_label_filename, files), total=len(files))
+        all_labels = list([label for labels_per_file in all_labels 
+                                    for label in labels_per_file])
+        if args.min_products > 0:
+            all_labels_df = pd.DataFrame(all_labels, columns=['category', 'name'])
+            category_counts = all_labels_df.groupby('category').size()
+            selected_categories = category_counts[category_counts >= args.min_products].index.tolist()
+            print(f"{len(selected_categories)} out of {len(category_counts)} has at least {args.min_products} products.")
+            selected_labels = all_labels_df[all_labels_df['category'].isin(selected_categories)]
+            all_labels = [[tuple(row) for row in selected_labels.itertuples(index=False)]]
+
         with open(output_file, 'w') as output:
             for label_list in all_labels:
                 for (cat, name) in label_list:
