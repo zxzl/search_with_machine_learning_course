@@ -74,9 +74,8 @@ if __name__ == '__main__':
             selected_categories = category_counts[category_counts >= args.min_products].index.tolist()
             print(f"{len(selected_categories)} out of {len(category_counts)} has at least {args.min_products} products.")
             selected_labels = all_labels_df[all_labels_df['category'].isin(selected_categories)]
-            all_labels = [[tuple(row) for row in selected_labels.itertuples(index=False)]]
+            all_labels = [tuple(row) for row in selected_labels.itertuples(index=False)]
 
         with open(output_file, 'w') as output:
-            for label_list in all_labels:
-                for (cat, name) in label_list:
-                    output.write(f'__label__{cat} {name}\n')
+            for (cat, name) in all_labels:
+                output.write(f'__label__{cat} {name}\n')
